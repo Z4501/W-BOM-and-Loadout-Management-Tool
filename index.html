@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BOM & Loadout Manager</title>
+  <style>
+    :root {
+      --bg: #f5f7fb;
+      --card: #ffffff;
+      --line: #d8dfeb;
+      --text: #16202a;
+      --muted: #5f6b7a;
+      --accent: #1f4e79;
+      --accent2: #2f6ea5;
+      --good: #0d7a3a;
+      --warn: #a95b00;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      color: var(--text);
+      background: var(--bg);
+    }
+    .wrap {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    h1 { margin: 0 0 8px; font-size: 28px; }
+    .sub { color: var(--muted); margin-bottom: 20px; }
+    .grid {
+      display: grid;
+      grid-template-columns: 1.05fr 1fr;
+      gap: 20px;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 16px;
+      box-shadow: 0 2px 8px rgba(0,0,0,.04);
+      margin-bottom: 16px;
+    }
+    .card h2 { margin: 0 0 14px; font-size: 20px; }
+    .card h3 { margin: 16px 0 10px; font-size: 16px; }
+    .toolbar, .row, .split {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .split > * { flex: 1 1 220px; }
+    input[type="text"], input[type="number"], textarea, select {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      font: inherit;
+      background: #fff;
+    }
+    textarea { min-height: 84px; resize: vertical; }
+    button {
+      border: 0;
+      background: var(--accent);
+      color: #fff;
+      padding: 10px 14px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 700;
+    }
+    button.secondary { background: #6b7785; }
+    button.light { background: var(--accent2); }
+    button.good { background: var(--good); }
+    button.warn { background: var(--warn); }
+    button.ghost {
+      background: #eef3f9;
+      color: var(--text);
+      border: 1px solid var(--line);
+    }
+    .status {
+      padding: 10px 12px;
+      border-radius: 8px;
+      margin-top: 10px;
+      font-size: 14px;
+      background: #eef4fb;
+      border: 1px solid #d6e5f5;
+      color: #29435c;
+    }
+    .mono { font-family: Consolas, Monaco, monospace; }
+    .results {
+      white-space: pre-wrap;
+      background: #f7f9fc;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 14px;
+      min-height: 280px;
+      overflow: auto;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 8px;
+    }
+    th, td {
+      border: 1px solid var(--line);
+      padding: 8px;
+      text-align: left;
+      vertical-align: top;
+    }
+    th { background: #f0f4f8; }
+    .item-table input { min-width: 110px; }
+    .small { font-size: 13px; color: var(--muted); }
+    .inline-note {
+      padding: 8px 10px;
+      background: #fff7e8;
+      border: 1px solid #ecd7a8;
+      border-radius: 8px;
+      color: #674800;
+      margin: 10px 0 0;
+      font-size: 13px;
+    }
+    .footer-note { font-size: 13px; color: var(--muted); margin-top: 10px; }
+    @media (max-width: 980px) {
+      .grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>BOM & Loadout Manager</h1>
+    <div class="sub">Lookup, add new W#, edit child contents, and maintain loadout in one window.</div>
+
+    <div class="grid">
+      <div>
+        <div class="card">
+          <h2>Lookup</h2>
+          <div class="toolbar">
+            <div style="flex:1 1 320px;"><input id="lookupKey" type="text" placeholder="Enter parent W# or part number" /></div>
+            <button onclick="lookupRecord()">Search</button>
+            <button class="ghost" onclick="clearLookup()">Clear</button>
+            <button class="light" onclick="loadIntoEditor()">Load into Editor</button>
+          </div>
+          <div class="status" id="dataStatus">Loading bom-data.json...</div>
+          <div class="results mono" id="lookupOutput">Ready.</div>
+        </div>
+
+        <div class="card">
+          <h2>Repository File Process</h2>
+          <div class="small">This page can read <span class="mono">bom-data.json</span>. Changes you make here save in your browser first. Then export the updated JSON file and replace the repo file in GitHub.</div>
+          <div class="toolbar" style="margin-top:12px;">
+            <button class="good" onclick="exportRepoJson()">Export Updated bom-data.json</button>
+            <label class="ghost" style="display:inline-flex;align-items:center;gap:8px;padding:10px 14px;border-radius:8px;cursor:pointer;">
+              Import bom-data.json
+              <input id="importRepoFile" type="file" accept="application/json,.json" style="display:none" onchange="importRepoJson(event)" />
+            </label>
+            <button class="secondary" onclick="resetLocalEdits()">Discard Local Edits</button>
+          </div>
+          <div class="inline-note">GitHub process: edit here → export <span class="mono">bom-data.json</span> → upload/replace the repo file → commit changes.</div>
+        </div>
+      </div>
+
+      <div>
+        <div class="card">
+          <h2>Item Editor</h2>
+          <div class="split">
+            <div>
+              <label class="small">Parent W# / item key</label>
+              <input id="editorKey" type="text" placeholder="Example: w360768283184f46a" />
+            </div>
+            <div>
+              <label class="small">Lookup helper</label>
+              <div class="toolbar">
+                <button class="ghost" onclick="pullEditorFromLookup()">Use current lookup key</button>
+                <button class="ghost" onclick="newBlankRecord()">New blank record</button>
+              </div>
+            </div>
+          </div>
+
+          <h3>Child Items</h3>
+          <table class="item-table" id="itemsTable">
+            <thead>
+              <tr><th style="width:65%;">Child Part #</th><th style="width:20%;">Qty</th><th style="width:15%;">Remove</th></tr>
+            </thead>
+            <tbody id="itemsBody"></tbody>
+          </table>
+          <div class="toolbar" style="margin-top:10px;">
+            <button class="ghost" onclick="addItemRow()">Add Child Item</button>
+          </div>
+
+          <h3>Loadout</h3>
+          <div class="split">
+            <div>
+              <label class="small">Box type</label>
+              <input id="boxType" type="text" placeholder="Example: Alto tall Super kit box" />
+            </div>
+            <div>
+              <label class="small">Dimensions</label>
+              <input id="dimensions" type="text" placeholder="Example: 16 x 12 x 8" />
+            </div>
+            <div>
+              <label class="small">Weight</label>
+              <input id="weight" type="text" placeholder="Example: 12 lb" />
+            </div>
+          </div>
+          <div style="margin-top:10px;">
+            <label class="small">Loadout / pack notes</label>
+            <textarea id="loadNotes" placeholder="Pack instructions, Alto loadout notes, special handling, etc."></textarea>
+          </div>
+
+          <div class="toolbar" style="margin-top:14px;">
+            <button class="good" onclick="saveEditorRecord()">Save / Update Record</button>
+            <button class="warn" onclick="deleteCurrentRecord()">Delete Current Record</button>
+            <button class="secondary" onclick="clearEditor()">Clear Editor</button>
+          </div>
+          <div class="status" id="editorStatus">No changes yet.</div>
+          <div class="footer-note">Save updates the in-browser working copy. Export <span class="mono">bom-data.json</span> after changes so you can replace the GitHub repo file.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+let baseData = { kits: {}, loadouts: {} };
+let workingData = { kits: {}, loadouts: {} };
+const STORAGE_KEY = 'bomManagerWorkingData';
+
+function deepClone(obj) {
+  return JSON.parse(JSON.stringify(obj));
+}
+
+function normalizeKey(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function safeLoadoutObject(raw) {
+  if (!raw) return { boxType: '', dimensions: '', weight: '', notes: '' };
+  if (typeof raw === 'string') {
+    return { boxType: '', dimensions: '', weight: '', notes: raw };
+  }
+  return {
+    boxType: raw.boxType || '',
+    dimensions: raw.dimensions || '',
+    weight: raw.weight || '',
+    notes: raw.notes || raw.raw || ''
+  };
+}
+
+async function init() {
+  try {
+    const res = await fetch('bom-data.json', { cache: 'no-store' });
+    if (!res.ok) throw new Error('Could not load bom-data.json');
+    baseData = await res.json();
+    if (!baseData.kits) baseData.kits = {};
+    if (!baseData.loadouts) baseData.loadouts = {};
+
+    const local = localStorage.getItem(STORAGE_KEY);
+    workingData = local ? JSON.parse(local) : deepClone(baseData);
+    if (!workingData.kits) workingData.kits = {};
+    if (!workingData.loadouts) workingData.loadouts = {};
+
+    const localCount = countLocalDiffs();
+    document.getElementById('dataStatus').textContent = localCount
+      ? `Loaded repo file. Local unsynced edits: ${localCount}.`
+      : 'Loaded repo file. No local unsynced edits.';
+  } catch (err) {
+    workingData = { kits: {}, loadouts: {} };
+    document.getElementById('dataStatus').textContent = 'Could not load bom-data.json. You can still import one.';
+    document.getElementById('lookupOutput').textContent = 'Error: ' + err.message;
+  }
+  addItemRow();
+}
+
+function countLocalDiffs() {
+  return JSON.stringify(workingData) === JSON.stringify(baseData) ? 0 : 1;
+}
+
+function persistWorkingData() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(workingData));
+  document.getElementById('dataStatus').textContent = 'Working copy saved in browser. Export bom-data.json when ready.';
+}
+
+function clearLookup() {
+  document.getElementById('lookupKey').value = '';
+  document.getElementById('lookupOutput').textContent = 'Ready.';
+}
+
+function formatLookup(key) {
+  const items = workingData.kits[key] || [];
+  const load = safeLoadoutObject(workingData.loadouts[key]);
+  let lines = [];
+  lines.push('Parent: ' + key);
+  lines.push('');
+  lines.push('Contents:');
+  if (!items.length) {
+    lines.push('  No child items found.');
+  } else {
+    items.forEach((item, i) => lines.push(`  ${i + 1}. ${item.part} x ${item.qty}`));
+  }
+  lines.push('');
+  lines.push('Loadout:');
+  if (!load.boxType && !load.dimensions && !load.weight && !load.notes) {
+    lines.push('  No loadout data found.');
+  } else {
+    if (load.boxType) lines.push('  Box Type: ' + load.boxType);
+    if (load.dimensions) lines.push('  Dimensions: ' + load.dimensions);
+    if (load.weight) lines.push('  Weight: ' + load.weight);
+    if (load.notes) lines.push('  Notes: ' + load.notes);
+  }
+  return lines.join('\n');
+}
+
+function lookupRecord() {
+  const key = normalizeKey(document.getElementById('lookupKey').value);
+  const out = document.getElementById('lookupOutput');
+  if (!key) {
+    out.textContent = 'Enter a parent W# or item key.';
+    return;
+  }
+  const exists = workingData.kits[key] || workingData.loadouts[key];
+  out.textContent = exists ? formatLookup(key) : `No record found for: ${key}`;
+}
+
+function loadIntoEditor() {
+  const key = normalizeKey(document.getElementById('lookupKey').value);
+  if (!key) return;
+  loadRecordToEditor(key);
+}
+
+function pullEditorFromLookup() {
+  const key = normalizeKey(document.getElementById('lookupKey').value);
+  if (key) document.getElementById('editorKey').value = key;
+}
+
+function newBlankRecord() {
+  clearEditor();
+  document.getElementById('editorStatus').textContent = 'Blank record ready.';
+}
+
+function addItemRow(part = '', qty = 1) {
+  const body = document.getElementById('itemsBody');
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td><input type="text" class="partInput" value="${escapeHtml(part)}" placeholder="Child part #" /></td>
+    <td><input type="number" class="qtyInput" value="${Number(qty) || 1}" min="1" step="1" /></td>
+    <td><button type="button" class="ghost" onclick="this.closest('tr').remove()">Remove</button></td>
+  `;
+  body.appendChild(tr);
+}
+
+function escapeHtml(text) {
+  return String(text || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function clearItemsTable() {
+  document.getElementById('itemsBody').innerHTML = '';
+}
+
+function loadRecordToEditor(key) {
+  document.getElementById('editorKey').value = key;
+  clearItemsTable();
+  const items = workingData.kits[key] || [];
+  if (items.length) {
+    items.forEach(item => addItemRow(item.part, item.qty));
+  } else {
+    addItemRow();
+  }
+  const load = safeLoadoutObject(workingData.loadouts[key]);
+  document.getElementById('boxType').value = load.boxType;
+  document.getElementById('dimensions').value = load.dimensions;
+  document.getElementById('weight').value = load.weight;
+  document.getElementById('loadNotes').value = load.notes;
+  document.getElementById('editorStatus').textContent = 'Loaded ' + key + ' into editor.';
+}
+
+function readEditorItems() {
+  const rows = [...document.querySelectorAll('#itemsBody tr')];
+  return rows.map(row => {
+    const part = row.querySelector('.partInput').value.trim();
+    const qty = parseInt(row.querySelector('.qtyInput').value, 10);
+    return { part, qty: Number.isFinite(qty) && qty > 0 ? qty : 1 };
+  }).filter(x => x.part);
+}
+
+function saveEditorRecord() {
+  const key = normalizeKey(document.getElementById('editorKey').value);
+  if (!key) {
+    document.getElementById('editorStatus').textContent = 'Enter a parent W# first.';
+    return;
+  }
+  const items = readEditorItems();
+  const loadout = {
+    boxType: document.getElementById('boxType').value.trim(),
+    dimensions: document.getElementById('dimensions').value.trim(),
+    weight: document.getElementById('weight').value.trim(),
+    notes: document.getElementById('loadNotes').value.trim()
+  };
+
+  workingData.kits[key] = items;
+  if (loadout.boxType || loadout.dimensions || loadout.weight || loadout.notes) {
+    workingData.loadouts[key] = loadout;
+  } else {
+    delete workingData.loadouts[key];
+  }
+  persistWorkingData();
+  document.getElementById('lookupKey').value = key;
+  lookupRecord();
+  document.getElementById('editorStatus').textContent = 'Saved ' + key + ' in browser working copy. Export bom-data.json next.';
+}
+
+function deleteCurrentRecord() {
+  const key = normalizeKey(document.getElementById('editorKey').value);
+  if (!key) {
+    document.getElementById('editorStatus').textContent = 'Nothing selected to delete.';
+    return;
+  }
+  if (!confirm('Delete record ' + key + '?')) return;
+  delete workingData.kits[key];
+  delete workingData.loadouts[key];
+  persistWorkingData();
+  clearEditor();
+  document.getElementById('lookupOutput').textContent = 'Deleted ' + key + '.';
+  document.getElementById('editorStatus').textContent = 'Deleted ' + key + ' from working copy.';
+}
+
+function clearEditor() {
+  document.getElementById('editorKey').value = '';
+  document.getElementById('boxType').value = '';
+  document.getElementById('dimensions').value = '';
+  document.getElementById('weight').value = '';
+  document.getElementById('loadNotes').value = '';
+  clearItemsTable();
+  addItemRow();
+}
+
+function downloadFile(name, content, type = 'application/json') {
+  const blob = new Blob([content], { type });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+function exportRepoJson() {
+  const payload = JSON.stringify(workingData, null, 2);
+  downloadFile('bom-data.json', payload);
+  document.getElementById('dataStatus').textContent = 'Exported bom-data.json. Replace the repo file in GitHub and commit.';
+}
+
+function importRepoJson(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const imported = JSON.parse(e.target.result);
+      if (!imported.kits || !imported.loadouts) throw new Error('JSON must contain kits and loadouts.');
+      workingData = imported;
+      persistWorkingData();
+      document.getElementById('dataStatus').textContent = 'Imported bom-data.json into working copy.';
+      document.getElementById('editorStatus').textContent = 'Imported repo-style JSON.';
+    } catch (err) {
+      alert('Import failed: ' + err.message);
+    }
+    event.target.value = '';
+  };
+  reader.readAsText(file);
+}
+
+function resetLocalEdits() {
+  if (!confirm('Discard local edits and go back to the repo file version?')) return;
+  workingData = deepClone(baseData);
+  localStorage.removeItem(STORAGE_KEY);
+  document.getElementById('dataStatus').textContent = 'Local edits discarded. Back to repo file version.';
+  document.getElementById('editorStatus').textContent = 'Reset complete.';
+  clearEditor();
+  clearLookup();
+}
+
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && document.activeElement.id === 'lookupKey') {
+    lookupRecord();
+  }
+});
+
+init();
+</script>
+</body>
+</html>
