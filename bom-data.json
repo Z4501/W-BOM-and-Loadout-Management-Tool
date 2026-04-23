@@ -12195,6 +12195,12 @@
         "part": "049700",
         "qty": 8
       }
+    ],
+    "wwpo057670hp": [
+      {
+        "part": "057670HP",
+        "qty": 1
+      }
     ]
   },
   "loadouts": {
@@ -12541,6 +12547,12 @@
     "w362111962286": "Pack in Regional A Side load",
     "w362112033571": "****Special pack instructions*** Please place part  in padded USPS FR envelope as its container. Place that item thatâs in the padded envelope into a USPS padded flat rate envelope for shipping. Postage is attached",
     "w4722351": "Alto Short  Kit Box 7099-238 9 LBS",
-    "w4l60pk": "Padded"
+    "w4l60pk": "Padded",
+    "wwpo057670hp": {
+      "boxType": "",
+      "dimensions": "",
+      "weight": "",
+      "notes": "BB700-178X as the shipping box Postage good for 2LBS 5OZ"
+    }
   }
 }
